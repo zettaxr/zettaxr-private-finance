@@ -112,7 +112,7 @@ async function decrypt(record) {
 $("create").onclick = async () => {
   try {
     const password = $("password").value;
-    if (password.length < 12) {
+    if (password.length < 8) {
       throw Error("Gunakan password minimal 12 karakter.");
     }
     if (getData()) {
