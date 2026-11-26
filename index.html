@@ -1,13 +1,193 @@
+
 <!DOCTYPE html>
 <html lang="id">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>ZettaXr Private Finance</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ZettaXr Private Finance</title>
+<style>
+* { box-sizing: border-box; }
+body {
+  margin: 0; padding: 20px;
+  min-height: 100vh;
+  display: flex; align-items: center; justify-content: center;
+  background: #101522; color: white;
+  font-family: Arial, sans-serif;
+}
+.container {
+  width: 100%; max-width: 420px;
+  background: #1b2435; padding: 25px;
+  border-radius: 18px;
+}
+h2, p { text-align: center; }
+p { color: #aab5c8; }
+input, textarea, button {
+  width: 100%; padding: 14px;
+  margin-top: 12px; border-radius: 9px;
+}
+input, textarea {
+  background: #101522; color: white;
+  border: 1px solid #39445a;
+}
+textarea { min-height: 180px; resize: vertical; }
+button {
+  border: 0; background: #3985ff;
+  color: white; font-weight: bold;
+}
+.secondary { background: #39445a; }
+#vault { display: none; }
+#status { font-size: 13px; }
+</style>
 </head>
 <body>
-  <h1>ZettaXr Private Finance</h1>
-  <p>Catatan keuangan pribadi yang dirancang untuk menjaga privasi.</p>
-  <p id="status">Sistem siap dikembangkan.</p>
+<div class="container">
+  <h2>🔐 ZettaXr Private Finance</h2>
+  <p>Brankas keuangan pribadi</p>
+
+  <section id="login">
+    <input id="password" type="password"
+      placeholder="Password pribadi">
+
+    <button id="create">Buat Brankas Baru</button>
+    <button id="open" class="secondary">Buka Brankas</button>
+  </section>
+
+  <section id="vault">
+    <textarea id="notes"
+      placeholder="Tulis catatan keuangan di sini..."></textarea>
+    <button id="save">Simpan Catatan Terenkripsi</button>
+    <button id="close" class="secondary">Kunci Brankas</button>
+  </section>
+
+  <p id="status">Data disimpan terenkripsi di perangkat ini.</p>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const encoder = new TextEncoder();
+const decoder = new TextDecoder();
+let cryptoKey = null;
+
+const getData = () => localStorage.getItem("zettaxr_vault");
+
+async function deriveKey(password, salt) {
+  const material = await crypto.subtle.importKey(
+    "raw", encoder.encode(password),
+    "PBKDF2", false, ["deriveKey"]
+  );
+
+  return crypto.subtle.deriveKey({
+    name: "PBKDF2",
+    salt,
+    iterations: 310000,
+    hash: "SHA-256"
+  }, material, {
+    name: "AES-GCM",
+    length: 256
+  }, false, ["encrypt", "decrypt"]);
+}
+
+async function encrypt(text) {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const data = await crypto.subtle.encrypt(
+    { name: "AES-GCM", iv },
+    cryptoKey, encoder.encode(text)
+  );
+
+  return {
+    iv: Array.from(iv),
+    data: Array.from(new Uint8Array(data))
+  };
+}
+
+async function decrypt(record) {
+  const result = await crypto.subtle.decrypt({
+    name: "AES-GCM",
+    iv: new Uint8Array(record.iv)
+  }, cryptoKey, new Uint8Array(record.data));
+
+  return decoder.decode(result);
+}
+
+$("create").onclick = async () => {
+  try {
+    const password = $("password").value;
+    if (password.length < 12) {
+      throw Error("Gunakan password minimal 12 karakter.");
+    }
+    if (getData()) {
+      throw Error("Brankas sudah ada. Gunakan tombol Buka.");
+    }
+
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    cryptoKey = await deriveKey(password, salt);
+
+    const encrypted = await encrypt("");
+    localStorage.setItem("zettaxr_vault", JSON.stringify({
+      salt: Array.from(salt),
+      encrypted
+    }));
+
+    showVault("");
+    $("status").textContent = "Brankas berhasil dibuat.";
+  } catch (e) {
+    $("status").textContent = e.message || "Gagal membuat brankas.";
+  }
+};
+
+$("open").onclick = async () => {
+  try {
+    const saved = getData();
+    if (!saved) throw Error("Brankas belum dibuat.");
+
+    const record = JSON.parse(saved);
+    const password = $("password").value;
+    if (!password) throw Error("Masukkan password.");
+
+    cryptoKey = await deriveKey(
+      password, new Uint8Array(record.salt)
+    );
+
+    const notes = await decrypt(record.encrypted);
+    showVault(notes);
+    $("status").textContent = "Brankas berhasil dibuka.";
+  } catch {
+    cryptoKey = null;
+    $("status").textContent = "Password salah atau data rusak.";
+  }
+};
+
+$("save").onclick = async () => {
+  try {
+    const saved = JSON.parse(getData());
+    const encrypted = await encrypt($("notes").value);
+
+    localStorage.setItem("zettaxr_vault", JSON.stringify({
+      salt: saved.salt,
+      encrypted
+    }));
+
+    $("status").textContent = "Catatan tersimpan dalam bentuk terenkripsi.";
+  } catch {
+    $("status").textContent = "Gagal menyimpan catatan.";
+  }
+};
+
+function showVault(notes) {
+  $("notes").value = notes;
+  $("password").value = "";
+  $("login").style.display = "none";
+  $("vault").style.display = "block";
+}
+
+$("close").onclick = () => {
+  cryptoKey = null;
+  $("notes").value = "";
+  $("vault").style.display = "none";
+  $("login").style.display = "block";
+  $("status").textContent = "Brankas dikunci.";
+};
+</script>
 </body>
 </html>
+
