@@ -147,6 +147,8 @@ $('refresh').onclick = async () => {
     $('status').textContent = e.message
   }
 }
+
+window.addEventListener("pagehide", () => { apiKey = ""; $("key").value = ""; });
 </script>
 </body>
 </html>
