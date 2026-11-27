@@ -45,6 +45,8 @@ button {
   <p>Brankas keuangan pribadi</p>
 
   <section id="login">
+<input id="importFile" type="file" accept=".json">
+<button id="importVault" class="secondary">Impor Brankas</button>
     <input id="password" type="password"
       placeholder="Password pribadi">
 
@@ -53,6 +55,7 @@ button {
   </section>
 
   <section id="vault">
+<button id="exportVault" class="secondary">Ekspor Brankas</button>
     <textarea id="notes"
       placeholder="Tulis catatan keuangan di sini..."></textarea>
     <button id="save">Simpan Catatan Terenkripsi</button>
@@ -160,6 +163,43 @@ $("open").onclick = async () => {
   } catch {
     cryptoKey = null;
     $("status").textContent = "Password salah atau data rusak.";
+  }
+};
+
+$("exportVault").onclick = () => {
+  const data = getData();
+  if (!data) {
+    $("status").textContent = "Brankas tidak ditemukan.";
+    return;
+  }
+
+  const blob = new Blob([data], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "zettaxr-backup.json";
+  a.click();
+  URL.revokeObjectURL(url);
+  $("status").textContent = "Backup berhasil diekspor.";
+};
+
+$("importVault").onclick = async () => {
+  try {
+    const file = $("importFile").files[0];
+    if (!file) throw Error("Pilih file backup terlebih dahulu.");
+    if (getData()) throw Error("Brankas sudah ada. Impor hanya di perangkat kosong.");
+
+    const data = JSON.parse(await file.text());
+    if (!Array.isArray(data.salt) ||
+        !Array.isArray(data.encrypted?.iv) ||
+        !Array.isArray(data.encrypted?.data)) {
+      throw Error("File backup tidak valid.");
+    }
+
+    localStorage.setItem("zettaxr_vault", JSON.stringify(data));
+    $("status").textContent = "Backup berhasil diimpor. Buka dengan password lama.";
+  } catch (e) {
+    $("status").textContent = e.message || "Impor gagal.";
   }
 };
 
