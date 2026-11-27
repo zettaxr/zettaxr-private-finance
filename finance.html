@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ZettaXr Finance</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;padding:20px;background:#101522;color:white;font-family:Arial}
+main{max-width:460px;margin:auto;background:#1b2435;padding:22px;border-radius:16px}
+h2,p{text-align:center}
+input,button{width:100%;padding:13px;margin-top:10px;border-radius:8px}
+input{background:#101522;color:white;border:1px solid #39445a}
+button{border:0;background:#3985ff;color:white;font-weight:bold}
+.card{background:#101522;padding:14px;margin-top:12px;border-radius:10px}
+small{color:#aab5c8}
+#status{color:#aab5c8;font-size:13px}
+</style>
+</head>
+<body>
+<main>
+<h2>💰 ZettaXr Finance</h2>
+<p>Keuangan pribadi</p>
+
+<section id="login">
+<input id="key" type="password" placeholder="Masukkan kunci API">
+<button id="connect">Hubungkan</button>
+</section>
+
+<section id="app" hidden>
+<div class="card">Pemasukan: <b id="masuk">Rp0</b></div>
+<div class="card">Pengeluaran: <b id="keluar">Rp0</b></div>
+<div class="card">Saldo: <b id="saldo">Rp0</b></div>
+
+<h3>Catat transaksi</h3>
+<select id="type">
+<option value="masuk">Pemasukan</option>
+<option value="keluar">Pengeluaran</option>
+</select>
+<input id="amount" type="number" min="1" step="1" placeholder="Jumlah rupiah">
+<input id="description" type="text" maxlength="150" placeholder="Keterangan">
+<button id="save">Simpan transaksi</button>
+
+<h3>Riwayat terbaru</h3>
+<div id="history"></div>
+<button id="refresh">Muat ulang</button>
+</section>
+<p id="status">Kunci API hanya disimpan sementara selama halaman terbuka.</p>
+</main>
+
+<script>
+let apiKey = ''
+const $ = id => document.getElementById(id)
+const rupiah = n => new Intl.NumberFormat('id-ID',{
+  style:'currency',currency:'IDR',maximumFractionDigits:0
+}).format(n)
+
+async function api(path, options={}) {
+  const response = await fetch('/api/' + path, {
+    ...options,
+    headers:{
+      'Authorization':'Bearer ' + apiKey,
+      ...(options.headers || {})
+    }
+  })
+  const data = await response.json()
+  if (!response.ok) throw Error(data.error || 'Permintaan gagal')
+  return data
+}
+
+async function loadData() {
+  const data = await api('saldo')
+  $('masuk').textContent = rupiah(data.pemasukan)
+  $('keluar').textContent = rupiah(data.pengeluaran)
+  $('saldo').textContent = rupiah(data.saldo)
+
+  const rows = await api('riwayat')
+  const history = $('history')
+  history.replaceChildren()
+
+  if (!rows.length) {
+    history.textContent = 'Belum ada transaksi.'
+    return
+  }
+
+  rows.forEach(item => {
+    const div = document.createElement('div')
+    div.className = 'card'
+    const title = document.createElement('b')
+    title.textContent = (item.type === 'masuk' ? '+ ' : '- ') + rupiah(item.amount)
+    const desc = document.createElement('p')
+    desc.textContent = item.description
+    const date = document.createElement('small')
+    date.textContent = item.created_at || ''
+    div.append(title, desc, date)
+    history.append(div)
+  })
+}
+
+$('connect').onclick = async () => {
+  apiKey = $('key').value.trim()
+  if (!apiKey) {
+    $('status').textContent = 'Masukkan kunci API.'
+    return
+  }
+  try {
+    await loadData()
+    $('login').hidden = true
+    $('app').hidden = false
+    $('key').value = ''
+    $('status').textContent = 'Berhasil terhubung.'
+  } catch (e) {
+    apiKey = ''
+    $('status').textContent = e.message
+  }
+}
+
+$('save').onclick = async () => {
+  const amount = Number($('amount').value)
+  const description = $('description').value.trim()
+  if (!Number.isSafeInteger(amount) || amount <= 0 || !description) {
+    $('status').textContent = 'Isi jumlah dan keterangan dengan benar.'
+    return
+  }
+  try {
+    await api('catat', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        type:$('type').value, amount, description
+      })
+    })
+    $('amount').value = ''
+    $('description').value = ''
+    await loadData()
+    $('status').textContent = 'Transaksi berhasil disimpan.'
+  } catch(e) {
+    $('status').textContent = e.message
+  }
+}
+
+$('refresh').onclick = async () => {
+  try {
+    await loadData()
+    $('status').textContent = 'Data diperbarui.'
+  } catch(e) {
+    $('status').textContent = e.message
+  }
+}
+</script>
+</body>
+</html>
