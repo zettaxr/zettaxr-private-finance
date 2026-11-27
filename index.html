@@ -56,7 +56,13 @@ button {
     <textarea id="notes"
       placeholder="Tulis catatan keuangan di sini..."></textarea>
     <button id="save">Simpan Catatan Terenkripsi</button>
-    <button id="close" class="secondary">Kunci Brankas</button>
+<hr>
+<h3>Ganti Password</h3>
+<input id="oldPassword" type="password" placeholder="Password lama">
+<input id="newPassword" type="password" placeholder="Password baru (min. 8)">
+<input id="confirmPassword" type="password" placeholder="Ulangi password baru">
+<button id="changePassword">Ganti Password</button>
+<button id="close" class="secondary">Kunci Brankas</button>
   </section>
 
   <p id="status">Data disimpan terenkripsi di perangkat ini.</p>
@@ -186,6 +192,50 @@ $("close").onclick = () => {
   $("vault").style.display = "none";
   $("login").style.display = "block";
   $("status").textContent = "Brankas dikunci.";
+};
+$("changePassword").onclick = async () => {
+const previousKey = cryptoKey;
+ try {
+    const oldPassword = $("oldPassword").value;
+    const newPassword = $("newPassword").value;
+    const confirmPassword = $("confirmPassword").value;
+
+    if (newPassword.length < 8)
+      throw Error("Password baru minimal 8 karakter.");
+
+    if (newPassword !== confirmPassword)
+      throw Error("Konfirmasi password tidak cocok.");
+
+    const saved = JSON.parse(getData());
+
+    const oldKey = await deriveKey(
+      oldPassword, new Uint8Array(saved.salt)
+    );
+
+    cryptoKey = oldKey;
+
+await decrypt(saved.encrypted);
+const notes = $("notes").value;
+    const newSalt = crypto.getRandomValues(new Uint8Array(16));
+    cryptoKey = await deriveKey(newPassword, newSalt);
+
+    const encrypted = await encrypt(notes);
+
+    localStorage.setItem("zettaxr_vault", JSON.stringify({
+      salt: Array.from(newSalt),
+      encrypted
+    }));
+
+    $("oldPassword").value = "";
+    $("newPassword").value = "";
+    $("confirmPassword").value = "";
+
+    $("status").textContent = "Password berhasil diganti.";
+  } catch (e) {
+cryptoKey = previousKey;
+    $("status").textContent =
+      e.message || "Gagal mengganti password.";
+  }
 };
 </script>
 </body>
