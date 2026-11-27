@@ -113,7 +113,7 @@ $("create").onclick = async () => {
   try {
     const password = $("password").value;
     if (password.length < 8) {
-      throw Error("Gunakan password minimal 12 karakter.");
+      throw Error("Gunakan password minimal 8 karakter.");
     }
     if (getData()) {
       throw Error("Brankas sudah ada. Gunakan tombol Buka.");
